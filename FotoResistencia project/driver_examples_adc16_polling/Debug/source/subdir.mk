@@ -4,16 +4,19 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../source/LED_Manager.c \
 ../source/adc16_polling.c \
 ../source/mtb.c \
 ../source/semihost_hardfault.c 
 
 OBJS += \
+./source/LED_Manager.o \
 ./source/adc16_polling.o \
 ./source/mtb.o \
 ./source/semihost_hardfault.o 
 
 C_DEPS += \
+./source/LED_Manager.d \
 ./source/adc16_polling.d \
 ./source/mtb.d \
 ./source/semihost_hardfault.d 

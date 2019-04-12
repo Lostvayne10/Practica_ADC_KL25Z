@@ -40,6 +40,7 @@
 #define DEMO_ADC16_BASE ADC0
 #define DEMO_ADC16_CHANNEL_GROUP 0U
 #define DEMO_ADC16_USER_CHANNEL 0U /*PTE20, ADC0_SE0 */
+#define DEMO_ADC16_USER_CHANNEL2 3U /*PTE22 */
 
 
 /*******************************************************************************
@@ -57,15 +58,18 @@
  * @brief Main function
  */
 int Abs(int,int);
-static void Delay(void);
-
+static void Delay(int);
+static void contadorBinario(int);
+static int ReglaDe3(int);
 
 int main(void)
 {
     adc16_config_t adc16ConfigStruct;
     adc16_channel_config_t adc16ChannelConfigStruct;
-    int DatoAnterior, DatoSig, Error, Estable;
-    Error=Estable=0;
+    int DatoAnterior, DatoSig, Error, Porcentaje;
+    float Estable;
+    Error=Porcentaje=0;
+    Estable=0.0;
     BOARD_InitPins();
     BOARD_BootClockRUN();
     BOARD_InitDebugConsole();
@@ -101,11 +105,12 @@ int main(void)
 #endif /* FSL_FEATURE_ADC16_HAS_CALIBRATION */
     PRINTF("Press any key to get user channel's ADC value ...\r\n");
 
-    adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL;
+
     adc16ChannelConfigStruct.enableInterruptOnConversionCompleted = false;
 #if defined(FSL_FEATURE_ADC16_HAS_DIFF_MODE) && FSL_FEATURE_ADC16_HAS_DIFF_MODE
     adc16ChannelConfigStruct.enableDifferentialConversion = false;
 #endif /* FSL_FEATURE_ADC16_HAS_DIFF_MODE */
+    adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL;
     ADC16_SetChannelConfig(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP, &adc16ChannelConfigStruct);
 
     while (0U == (kADC16_ChannelConversionDoneFlag &
@@ -124,8 +129,17 @@ int main(void)
          just to change the "channelNumber" field in channel's configuration structure, and call the
          "ADC16_ChannelConfigure() again.
         */
+    	adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL2;
+    	ADC16_SetChannelConfig(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP, &adc16ChannelConfigStruct);
+    			while (0U == (kADC16_ChannelConversionDoneFlag &
+    						  ADC16_GetChannelStatusFlags(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP)))
+    			{
+    			}
 
-    	Delay();
+    	Porcentaje = ADC16_GetChannelConversionValue(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP);
+    	Delay(ReglaDe3(Porcentaje));
+    	PRINTF("Portenciometro: %d \n", ReglaDe3(Porcentaje));
+    	adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL;
         ADC16_SetChannelConfig(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP, &adc16ChannelConfigStruct);
 		while (0U == (kADC16_ChannelConversionDoneFlag &
 					  ADC16_GetChannelStatusFlags(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP)))
@@ -134,24 +148,32 @@ int main(void)
 
 		DatoSig = ADC16_GetChannelConversionValue(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP);
 
-		if(Abs(DatoSig,DatoAnterior)>500 && Error < 5)
+		if(Abs(DatoSig,DatoAnterior)>900 && Error <= 10)
 		{
-			Error ++ ;
+			if(Error<10)
+				Error ++ ;
+
 			PRINTF("Contador de Error: %d \n", Error);
 			Estable=0;
+			contadorBinario(Error);
+
+
 		}
 		else if(Error>0){
-				Estable++;
-				if(Estable==20)
+				Estable+=ReglaDe3(Porcentaje)/100;
+				if(Estable>=5)
 				{
 					Error--;
-					Estable=0;
+					Estable=0.0;
 					PRINTF("Bajo Contador de Error: %d \n", Error);
+					Led_Off_PortB(0);
+					contadorBinario(Error);
 				}
 		}
-		if(Error==5)
+		if(Error==10)
 		{
-			PRINTF("Prender led de error \n");
+
+			Led_On_PortB(0);
 		}
 
 
@@ -176,12 +198,50 @@ int Abs(int x, int y)
 	return x-y;
 }
 
-static void Delay(void)
+static void Delay(int porcentaje)
 {
-	int ctrm = 2500000;
-	while(ctrm>0)
+	int ctrm = 10000;
+	long long resultado;
+	resultado = ctrm * porcentaje;
+	if(resultado==0)
 	{
-		ctrm--;
+		resultado = 100000;
+	}
+	while(resultado>0)
+	{
+		resultado--;
 		asm("nop");
 	}
 }
+
+static void contadorBinario(int x)
+{
+	Led_Off_PortB(1);
+	Led_Off_PortB(2);
+	Led_Off_PortB(3);
+	Led_Off_PortB(8);
+	if(x==1||x==3||x==5||x==7||x==9)
+	{
+		Led_On_PortB(1);
+	}
+	if(x==2||x==3||x==6||x==7||x==10)
+	{
+		Led_On_PortB(2);
+	}
+	if(x==4||x==5||x==6||x==7)
+	{
+		Led_On_PortB(3);
+	}
+	if(x==8||x==9||x==10)
+	{
+		Led_On_PortB(8);
+	}
+}
+
+static int ReglaDe3(int x)
+{
+	int resultado;
+	resultado = (x * 100)/4085;
+	return resultado;
+}
+
